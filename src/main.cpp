@@ -31,7 +31,7 @@ int main()
 
   // Create a UKF instance
   UKF ukf;
-  
+
   double target_x = 0.0;
   double target_y = 0.0;
 
@@ -45,20 +45,20 @@ int main()
 
       auto s = hasData(std::string(data));
       if (s != "") {
-      	
-      	
+
+
         auto j = json::parse(s);
         std::string event = j[0].get<std::string>();
-        
+
         if (event == "telemetry") {
           // j[1] is the data JSON object
 
           double hunter_x = std::stod(j[1]["hunter_x"].get<std::string>());
           double hunter_y = std::stod(j[1]["hunter_y"].get<std::string>());
           double hunter_heading = std::stod(j[1]["hunter_heading"].get<std::string>());
-          
+
           string lidar_measurment = j[1]["lidar_measurement"];
-          
+
           MeasurementPackage meas_package_L;
           istringstream iss_L(lidar_measurment);
     	  long long timestamp_L;
@@ -77,11 +77,11 @@ int main()
           meas_package_L.raw_measurements_ << px, py;
           iss_L >> timestamp_L;
           meas_package_L.timestamp_ = timestamp_L;
-          
+
     	  ukf.ProcessMeasurement(meas_package_L);
-		 
+
     	  string radar_measurment = j[1]["radar_measurement"];
-          
+
           MeasurementPackage meas_package_R;
           istringstream iss_R(radar_measurment);
     	  long long timestamp_R;
@@ -102,29 +102,68 @@ int main()
           meas_package_R.raw_measurements_ << ro,theta, ro_dot;
           iss_R >> timestamp_R;
           meas_package_R.timestamp_ = timestamp_R;
-          
+
     	  ukf.ProcessMeasurement(meas_package_R);
 
 	  target_x = ukf.x_[0];
 	  target_y = ukf.x_[1];
+    double v_pre = ukf.x_[2];
+    double yaw_pre = ukf.x_[3];
+    double yawdt_pre = ukf.x_[4];
+    double delta_t_pre = 0.5;
+    double distance_difference = sqrt((target_y - hunter_y)*(target_y - hunter_y) + (target_x - hunter_x)*(target_x - hunter_x));
+    if (distance_difference>10)
+    {
+      delta_t_pre = 1.5;
+    }
+    else if (distance_difference > 5)
+    {
+      delta_t_pre = 1.0;
+    }
+    else if (distance_difference > 1.5)
+    {
+      delta_t_pre = 0.5;
+    }
+    else if (distance_difference>0.5)
+    {
+      delta_t_pre = 0.15;
+    }
+    else
+    {
+      delta_t_pre = 0.1;
+    }
+
+
+    if (fabs(yawdt_pre) < 0.001)
+    {
+      target_x += v_pre*cos(yaw_pre)*delta_t_pre;
+      target_y += v_pre*sin(yaw_pre)*delta_t_pre;
+    }
+    else
+    {
+      target_x += (v_pre/yawdt_pre)*(sin(yaw_pre+yawdt_pre*delta_t_pre)-sin(yaw_pre));
+      target_y += (v_pre/yawdt_pre)*(-cos(yaw_pre+yawdt_pre*delta_t_pre)+cos(yaw_pre));
+    }
+
+
 
     	  double heading_to_target = atan2(target_y - hunter_y, target_x - hunter_x);
-    	  while (heading_to_target > M_PI) heading_to_target-=2.*M_PI; 
+    	  while (heading_to_target > M_PI) heading_to_target-=2.*M_PI;
     	  while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
     	  //turn towards the target
     	  double heading_difference = heading_to_target - hunter_heading;
-    	  while (heading_difference > M_PI) heading_difference-=2.*M_PI; 
+    	  while (heading_difference > M_PI) heading_difference-=2.*M_PI;
     	  while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
 
-    	  double distance_difference = sqrt((target_y - hunter_y)*(target_y - hunter_y) + (target_x - hunter_x)*(target_x - hunter_x));
+
 
           json msgJson;
           msgJson["turn"] = heading_difference;
-          msgJson["dist"] = distance_difference; 
+          msgJson["dist"] = distance_difference;
           auto msg = "42[\"move_hunter\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-	  
+
         }
       } else {
         // Manual driving
@@ -171,90 +210,3 @@ int main()
   }
   h.run();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
